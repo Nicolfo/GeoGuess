@@ -1,6 +1,7 @@
 import HistoryPage from '@/pages/HistoryPage';
 import Home from '@/pages/Home';
 import MedalsPage from '@/pages/MedalsPage';
+import ProfilePage from '@/pages/ProfilePage';
 import Vue from 'vue';
 import Router from 'vue-router';
 import { GAME_MODE } from './constants';
@@ -54,6 +55,11 @@ export default new Router({
             path: '/medals',
             name: 'Medals',
             component: MedalsPage,
+        },
+        {
+            path: '/profile',
+            name: 'Profile',
+            component: ProfilePage,
         },
         {
             path: '/street-view/:modeSelected/:time',

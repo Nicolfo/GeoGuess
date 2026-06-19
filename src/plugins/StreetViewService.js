@@ -9,6 +9,11 @@ import {
     isInGeoJSON
 } from '../utils';
 
+// Upper bound on how many random locations we probe before giving up, so a
+// region with no Street View coverage (or an outage of the area-lookup API)
+// can never recurse indefinitely.
+const MAX_STREETVIEW_ATTEMPTS = 50;
+
 class StreetViewService {
     constructor(
         settingsPanorama,
@@ -24,7 +29,12 @@ class StreetViewService {
         this.alreadyVisited = [];
     }
 
-    async getStreetView(round, cptNotFoundLocation = 0) {
+    async getStreetView(round, cptNotFoundLocation = 0, attempts = 0) {
+        if (attempts >= MAX_STREETVIEW_ATTEMPTS) {
+            throw new Error(
+                `Unable to find a Street View location after ${attempts} attempts`
+            );
+        }
         let radius, position, randomFeatureProperties;
         if (this.roundsPredefined) {
             radius = 50;
@@ -43,7 +53,7 @@ class StreetViewService {
             randomFeatureProperties = randomPos.properties;
         }
 
-        return new Promise((resolve) => {
+        return new Promise((resolve, reject) => {
             this.service.getPanorama(
                 {
                     location: position,
@@ -54,22 +64,34 @@ class StreetViewService {
                         : [google.maps.StreetViewSource.GOOGLE],
                 },
                 async (data, status) => {
-                    if (
-                        status !== google.maps.StreetViewStatus.OK ||
-                        !data ||
-                        !data.location ||
-                        !this._checkStreetView(data)
-                    ) {
-                        resolve(await this.getStreetView(round));
-                    } else {
-                        resolve(
-                            await this._getResponseStreetViewService(
-                                round,
-                                data,
-                                cptNotFoundLocation,
-                                randomFeatureProperties
-                            )
-                        );
+                    try {
+                        if (
+                            status !== google.maps.StreetViewStatus.OK ||
+                            !data ||
+                            !data.location ||
+                            !this._checkStreetView(data)
+                        ) {
+                            // No usable panorama here: probe another location.
+                            resolve(
+                                await this.getStreetView(
+                                    round,
+                                    cptNotFoundLocation,
+                                    attempts + 1
+                                )
+                            );
+                        } else {
+                            resolve(
+                                await this._getResponseStreetViewService(
+                                    round,
+                                    data,
+                                    cptNotFoundLocation,
+                                    randomFeatureProperties,
+                                    attempts
+                                )
+                            );
+                        }
+                    } catch (err) {
+                        reject(err);
                     }
                 }
             );
@@ -80,7 +102,8 @@ class StreetViewService {
         round,
         data,
         cptNotFoundLocation,
-        randomFeatureProperties
+        randomFeatureProperties,
+        attempts = 0
     ) {
         let isInGeoJSONResult, isVisibleDialog = false;
         if (this.placeGeoJson != null) {
@@ -93,19 +116,33 @@ class StreetViewService {
             );
         }
         if (isInGeoJSONResult === false && cptNotFoundLocation < 3) {
-            return this.getStreetView(round, cptNotFoundLocation + 1);
+            return this.getStreetView(
+                round,
+                cptNotFoundLocation + 1,
+                attempts + 1
+            );
         } else {
             // If 3 times Street View does not find location in the polygon placeGeoJson print warning message
             if (isInGeoJSONResult === false) {
                 isVisibleDialog = true;
             }
-            let areaCode;
+            let areaCode = null;
             try{
                 areaCode = await this._getAreaCode(data);
             }catch(err){
-                return this.getStreetView(round);
+                if (attempts + 1 < MAX_STREETVIEW_ATTEMPTS) {
+                    // Retry at a new location; the area lookup may transiently fail.
+                    return this.getStreetView(
+                        round,
+                        cptNotFoundLocation,
+                        attempts + 1
+                    );
+                }
+                // Out of attempts: keep this (valid) panorama playable, but flag
+                // that the area could not be resolved.
+                isVisibleDialog = true;
             }
-            
+
             return {
                 panorama: data,
                 roundInfo: randomFeatureProperties || null,

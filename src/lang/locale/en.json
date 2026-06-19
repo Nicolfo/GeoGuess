@@ -1,8 +1,27 @@
 {
+  "Chat": {
+    "title": "Chat",
+    "placeholder": "Type a message",
+    "send": "Send",
+    "empty": "No messages yet"
+  },
+  "Profile": {
+    "title": "Profile",
+    "displayName": "Display name",
+    "stats": {
+      "gamesPlayed": "Games played",
+      "placeVisits": "Places visited",
+      "perfectRounds": "Perfect rounds",
+      "bestPoints": "Best score",
+      "totalPoints": "Total points",
+      "averagePoints": "Average score"
+    }
+  },
   "Home": {
     "placeVisited": "0 visited places | 1 visited place | {count} visited places",
     "historyBtn": "HISTORY",
     "medalsBtn": "MEDALS",
+    "profileBtn": "PROFILE",
     "about": "ABOUT",
     "createMap": "Create Map",
     "searchBar": {

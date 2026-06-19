@@ -41,3 +41,9 @@ export const SETTINGS_RESET = 'SETTINGS_RESET';
 // Alert
 //
 export const ALERT_SET_ALERT = 'ALERT_SET_ALERT';
+
+//
+// User (persistent profile + stats)
+//
+export const USER_SET_PROFILE = 'USER_SET_PROFILE';
+export const USER_SET_DISPLAY_NAME = 'USER_SET_DISPLAY_NAME';

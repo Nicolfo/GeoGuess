@@ -5,7 +5,7 @@
                 <v-icon color="green" v-if="guessed">mdi-check</v-icon>
             </div>
             <p>
-                {{ name }} {{ scoreHeader ? `: ${scoreHeader}` : ''}}
+                {{ name }} {{ scoreHeader != null && scoreHeader !== '' ? `: ${scoreHeader}` : ''}}
             </p>
         </div>
     </div>

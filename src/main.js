@@ -1,6 +1,7 @@
 import axios from '@/plugins/axios';
 import 'firebase/analytics';
 import firebase from 'firebase/app';
+import 'firebase/app-check';
 import 'firebase/auth';
 import 'firebase/database';
 import * as GmapVue from 'gmap-vue';
@@ -70,6 +71,23 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 if (firebaseConfig.measurementId) firebase.analytics();
 
+// App Check: prove requests originate from the genuine app before the
+// Realtime Database accepts them. Activated only when a reCAPTCHA v3 site key
+// is configured, so the app keeps working until App Check is set up.
+// A debug token (set in dev/CI) lets localhost and Cypress attest; register it
+// under App Check > Manage debug tokens in the Firebase console.
+if (process.env.VUE_APP_APPCHECK_DEBUG_TOKEN) {
+    self.FIREBASE_APPCHECK_DEBUG_TOKEN =
+        process.env.VUE_APP_APPCHECK_DEBUG_TOKEN === 'true'
+            ? true
+            : process.env.VUE_APP_APPCHECK_DEBUG_TOKEN;
+}
+if (process.env.VUE_APP_RECAPTCHA_SITE_KEY) {
+    firebase
+        .appCheck()
+        .activate(process.env.VUE_APP_RECAPTCHA_SITE_KEY, true);
+}
+
 // Sign the player in anonymously so database writes can be restricted to
 // authenticated clients (see database.rules.json). This is a no-op until the
 // Anonymous sign-in provider is enabled in the Firebase console; the catch
@@ -81,6 +99,14 @@ firebase
         // eslint-disable-next-line no-console
         console.error('Anonymous Firebase auth failed:', error);
     });
+
+// Load (or create) the persistent profile once the auth state is known. This
+// also fires when a previous anonymous session is restored from cache.
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        store.dispatch('userStore/initUser', user.uid);
+    }
+});
 
 new Vue({
     vuetify: vuetify(i18n),

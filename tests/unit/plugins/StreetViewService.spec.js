@@ -59,6 +59,46 @@ describe('StreetViewService', ()=>{
 
     });
 
+    it('getStreetView: throws after the maximum number of attempts', async () => {
+        const streetviewServiceObj = new StreetViewService(
+            { allPanorama: true },
+            { mode: 'classic' },
+            null,
+            [[0, 1]]
+        );
+
+        await expect(
+            streetviewServiceObj.getStreetView(1, 0, 50)
+        ).rejects.toThrow(/after 50 attempts/);
+    });
+
+    it('_getResponseStreetViewService: degrades gracefully when area lookup keeps failing', async () => {
+        const streetviewServiceObj = new StreetViewService(
+            {},
+            { mode: 'country' }
+        );
+        streetviewServiceObj._getAreaCode = jest.fn(() => {
+            throw new Error('area service down');
+        });
+        const data = {
+            id: 'pano',
+            location: { latLng: { lng: () => 0, lat: () => 0 } },
+        };
+
+        // attempts + 1 reaches the cap, so it must resolve instead of recursing.
+        const res = await streetviewServiceObj._getResponseStreetViewService(
+            1,
+            data,
+            0,
+            null,
+            49
+        );
+
+        expect(res.panorama).toBe(data);
+        expect(res.area).toBeNull();
+        expect(res.warning).toBe(true);
+    });
+
     it('_getResponseStreetViewService: should return panorama', async () => {
         
         const streetviewServiceObj = new StreetViewService({},{

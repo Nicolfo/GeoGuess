@@ -71,70 +71,87 @@ export default {
                 state.isOpenDialogRoom = true;
             }
 
-            state.room.once('value', (snapshot) => {
-                if (snapshot.child('started').val()) {
-                    state.roomErrorMessage = i18n.t(
-                        'DialogRoom.alreadyStarted'
-                    );
-                    state.room.off();
-                    return;
-                }
+            // Claim a player slot atomically so two players joining at the same
+            // time can never read the same count and grab the same slot.
+            // The transaction runs on the room root because the "started" flag
+            // and the player list need to be read together in one consistent view.
+            let assignedPlayerNumber = null;
+            let alreadyStarted = false;
+            let roomIsFull = false;
 
-                const numberOfPlayers = snapshot
-                    .child('playerName')
-                    .numChildren();
+            state.room.transaction(
+                (room) => {
+                    // Reset the closure flags on every attempt; the transaction
+                    // may run several times (local cache, then server value).
+                    assignedPlayerNumber = null;
+                    alreadyStarted = false;
+                    roomIsFull = false;
 
-                // Reject the player when the room is already full
-                if (numberOfPlayers >= MAX_PLAYERS) {
-                    state.roomErrorMessage = i18n.t('DialogRoom.roomIsFull');
-                    state.room.off();
-                    return;
-                }
+                    if (room && room.started) {
+                        alreadyStarted = true;
+                        return; // abort: don't join a game in progress
+                    }
 
-                const playerNumber = numberOfPlayers + 1;
+                    const players = (room && room.playerName) || {};
+                    if (Object.keys(players).length >= MAX_PLAYERS) {
+                        roomIsFull = true;
+                        return; // abort: room is full
+                    }
 
-                state.playerNumber = playerNumber;
-                const name = state.name === '' ? i18n.t(
-                                'CardRoomPlayerName.anonymousPlayerName'
-                            ) + playerNumber : state.name;
+                    // Find the first free player slot (handles gaps left by leavers)
+                    let slot = 1;
+                    while (players['player' + slot]) {
+                        slot++;
+                    }
+                    assignedPlayerNumber = slot;
 
-                state.room.child('playerName/player'+playerNumber).onDisconnect().remove();
+                    const name =
+                        state.name === ''
+                            ? i18n.t('CardRoomPlayerName.anonymousPlayerName') +
+                              slot
+                            : state.name;
+                    players['player' + slot] = name;
 
-
-                if (numberOfPlayers === 0) {
-                    // Put the tentative player's name into the room node
-                    // So that other player can't enter as the first player while the player decide the name and room size
-                    state.room.child('playerName').update(
-                        {
-                            player1: name,
-                        },
-                        (error) => {
-                            if (!error) {
-                                // Put the timestamp the room is created so the expired rooms can be removed by cloud function
-                                state.room.update({
-                                    createdAt:
-                                        firebase.database.ServerValue.TIMESTAMP,
-                                });
-                                state.loadRoom = false;
-                                state.currentComponent = 'settingsMap';
-                            }
+                    return { ...(room || {}), playerName: players };
+                },
+                (error, committed) => {
+                    if (error || !committed) {
+                        if (alreadyStarted) {
+                            state.roomErrorMessage = i18n.t(
+                                'DialogRoom.alreadyStarted'
+                            );
+                        } else if (roomIsFull) {
+                            state.roomErrorMessage =
+                                i18n.t('DialogRoom.roomIsFull');
+                        } else if (error) {
+                            state.roomErrorMessage = i18n.t(
+                                'DialogRoom.invalidRoomName'
+                            );
                         }
-                    );
-                } else {
-                    // Put other player's tentative name
+                        state.room.off();
+                        return;
+                    }
+
+                    state.playerNumber = assignedPlayerNumber;
                     state.room
-                        .child('playerName/player' + playerNumber)
-                        .set(
-                            name,
-                            (error) => {
-                                if (!error) {
-                                    state.loadRoom = false;
-                                    state.currentComponent = 'playerName';
-                                }
-                            }
-                        );
+                        .child('playerName/player' + assignedPlayerNumber)
+                        .onDisconnect()
+                        .remove();
+
+                    if (assignedPlayerNumber === 1) {
+                        // Put the timestamp the room is created so the expired
+                        // rooms can be removed by a cloud function.
+                        state.room.update({
+                            createdAt: firebase.database.ServerValue.TIMESTAMP,
+                        });
+                        state.loadRoom = false;
+                        state.currentComponent = 'settingsMap';
+                    } else {
+                        state.loadRoom = false;
+                        state.currentComponent = 'playerName';
+                    }
                 }
-            });
+            );
         },
         [MutationTypes.SETTINGS_SET_ROOM_ERROR](state, error) {
             state.roomErrorMessage = error;
@@ -175,7 +192,15 @@ export default {
                 state.name = playerName;
                 state.room
                     .child('playerName/player' + state.playerNumber)
-                    .set(playerName);
+                    .set(playerName, (error) => {
+                        if (error) {
+                            // eslint-disable-next-line no-console
+                            console.error(
+                                'Failed to update player name:',
+                                error
+                            );
+                        }
+                    });
             }
         },
         [MutationTypes.SETTINGS_SET_PLAYERS](state, players) {
@@ -232,9 +257,10 @@ export default {
                     MutationTypes.SETTINGS_SET_ROOM_ERROR,
                     i18n.t('DialogRoom.invalidRoomName')
                 );
-            } else {
-                commit(MutationTypes.SETTINGS_SET_ROOM, roomName);
+                // No room ref was created, so don't attach a listener below.
+                return;
             }
+            commit(MutationTypes.SETTINGS_SET_ROOM, roomName);
 
             state.room.on('value', (snapshot) => {
                 if (snapshot.child('playerName').exists())

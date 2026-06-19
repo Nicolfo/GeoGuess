@@ -90,6 +90,7 @@
 </template>
 
 <script>
+import { mapActions } from 'vuex';
 import { GAME_MODE } from '../constants';
 export default {
     props: [
@@ -117,6 +118,7 @@ export default {
         },
     },
     methods: {
+        ...mapActions('userStore', ['recordGame']),
         updateRecord() {
             let history = localStorage.getItem('history');
             if (history == null) {
@@ -137,6 +139,12 @@ export default {
                 mapDetails: this.mapDetails
             });
             localStorage.setItem('history', JSON.stringify(history));
+
+            // Aggregate this game into the player's persistent lifetime stats.
+            this.recordGame({
+                points: this.points,
+                rounds: (this.game && this.game.rounds) || [],
+            });
         },
         finishGame() {
             this.$emit('finishGame');

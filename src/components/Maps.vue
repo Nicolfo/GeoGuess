@@ -247,7 +247,7 @@ export default {
     },
     computed: {
         isNextButtonEnabled() {
-            if (this.playerNumber == 1 || !this.room) {
+            if (this.playerNumber === 1 || !this.room) {
                 return true;
             } else {
                 return this.isNextStreetViewReady;            
@@ -452,7 +452,11 @@ export default {
                 // So that it uses for putting the markers and polylines
                 this.room
                     .child('guess/player' + this.playerNumber)
-                    .set(getSelectedPos(this.selectedPos, this.mode));
+                    .set(getSelectedPos(this.selectedPos, this.mode))
+                    .catch((error) => {
+                        // eslint-disable-next-line no-console
+                        console.error('Failed to save guess:', error);
+                    });
             } else {
                 // Put the marker on the random location
                 this.$refs.map.putMarker(this.randomLatLng, true);
@@ -532,6 +536,10 @@ export default {
                         distance: this.distance,
                         points: this.point,
                         timePassed,
+                    })
+                    .catch((error) => {
+                        // eslint-disable-next-line no-console
+                        console.error('Failed to save round result:', error);
                     });
             } else {
                 this.game.rounds.push({
@@ -582,7 +590,11 @@ export default {
             if (this.room)
                 this.room
                     .child('isGameDone/player' + this.playerNumber)
-                    .set(true);
+                    .set(true)
+                    .catch((error) => {
+                        // eslint-disable-next-line no-console
+                        console.error('Failed to flag game done:', error);
+                    });
             this.$emit('finishGame');
         },
     }

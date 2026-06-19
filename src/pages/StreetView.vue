@@ -93,6 +93,12 @@
             >
                 <LeaderboardContent :leaderboard="leaderboard" />
             </DialogMessage>
+            <Chat
+                v-if="multiplayer && roomName"
+                :room-name="roomName"
+                :player-number="playerNumber"
+                :player-name="playerName"
+            />
             <v-alert
                 v-if="isVisibleDialog"
                 type="warning"
@@ -146,10 +152,12 @@ import {mapActions, mapGetters, mapState} from 'vuex';
 import ConfirmExitMixin from '@/mixins/ConfirmExitMixin';
 import Leaderboard from "@/components/game/Leaderboard.vue";
 import LeaderboardContent from '../components/game/LeaderboardContent.vue';
+import Chat from "@/components/game/Chat.vue";
 
 export default {
     components: {
         Leaderboard,
+        Chat,
         HeaderGame,
         Maps,
         DialogMessage,
@@ -383,7 +391,7 @@ export default {
                             .set(0);
 
                         // Other players load the streetview the first player loaded earlier
-                        if (this.playerNumber != 1) {
+                        if (this.playerNumber !== 1) {
                             let randomLat = snapshot
                                 .child(
                                     'streetView/round' +
@@ -493,7 +501,18 @@ export default {
     methods: {
         ...mapActions(['loadAreas']),
         async loadStreetView() {
-            let {panorama, roundInfo, warning, area} = await this.streetViewService.getStreetView(this.round);
+            let result;
+            try {
+                result = await this.streetViewService.getStreetView(this.round);
+            } catch (err) {
+                // No Street View location could be found (e.g. an area with no
+                // coverage). Surface a warning instead of hanging the round.
+                // eslint-disable-next-line no-console
+                console.error('Failed to load Street View:', err);
+                this.isVisibleDialog = true;
+                return;
+            }
+            const {panorama, roundInfo, warning, area} = result;
             this.randomLatLng = panorama.location.latLng;
             this.randomFeatureProperties = roundInfo;
             this.area = area;
@@ -509,6 +528,14 @@ export default {
                         roundInfo: roundInfo,
                         ...(area && {area}),
                         warning,
+                 }, (error) => {
+                        if (error) {
+                            // eslint-disable-next-line no-console
+                            console.error(
+                                'Failed to sync Street View location:',
+                                error
+                            );
+                        }
                  });
             }
             
@@ -644,12 +671,18 @@ export default {
             this.points += points;
 
             if (this.multiplayer) {
+                const logScoreError = (error) => {
+                    if (error) {
+                        // eslint-disable-next-line no-console
+                        console.error('Failed to sync score:', error);
+                    }
+                };
                 this.room
                     .child('finalScore/player' + this.playerNumber)
-                    .set(this.score);
+                    .set(this.score, logScoreError);
                 this.room
                     .child('finalPoints/player' + this.playerNumber)
-                    .set(this.points);
+                    .set(this.points, logScoreError);
 
                 // Wait for other players to guess locations
                 this.dialogTitle = this.$t('StreetView.waitForOtherPlayers');
@@ -697,7 +730,7 @@ export default {
             // Update the round
             this.round += 1;
 
-            if (this.playerNumber == 1 || !this.multiplayer) {
+            if (this.playerNumber === 1 || !this.multiplayer) {
                 await this.loadStreetView();
                 if (!this.multiplayer && this.timeLimitation != 0) {
                     this.initTimer(this.timeLimitation);
@@ -707,7 +740,15 @@ export default {
                 // Trigger listener and load the next streetview
                 this.room
                     .child('trigger/player' + this.playerNumber)
-                    .set(this.round);
+                    .set(this.round, (error) => {
+                        if (error) {
+                            // eslint-disable-next-line no-console
+                            console.error(
+                                'Failed to trigger next round:',
+                                error
+                            );
+                        }
+                    });
             }
             this.$refs.mapContainer.startNextRound();
 

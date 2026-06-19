@@ -1,7 +1,29 @@
 {
   "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid",
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length <= 20"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()"
+        },
+        "stats": {
+          "medals": {
+            "$medal": {
+              ".validate": "newData.isNumber()"
+            }
+          },
+          "$stat": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
     "$room": {
-      ".read": true,
+      ".read": "auth != null",
       ".write": "auth != null",
       "playerName": {
         "$player": {
@@ -13,6 +35,61 @@
       },
       "size": {
         ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6"
+      },
+      "createdAt": {
+        ".validate": "newData.isNumber()"
+      },
+      "streetView": {
+        "$round": {
+          "latitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90"
+          },
+          "longitude": {
+            ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180"
+          },
+          "warning": {
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      },
+      "finalScore": {
+        "$player": {
+          ".validate": "$player.matches(/^player[1-6]$/) && newData.isNumber()"
+        }
+      },
+      "finalPoints": {
+        "$player": {
+          ".validate": "$player.matches(/^player[1-6]$/) && newData.isNumber()"
+        }
+      },
+      "isGameDone": {
+        "$player": {
+          ".validate": "$player.matches(/^player[1-6]$/) && newData.isBoolean()"
+        }
+      },
+      "trigger": {
+        "$player": {
+          ".validate": "$player.matches(/^player[1-6]$/) && newData.isNumber()"
+        }
+      },
+      "chat": {
+        "$messageId": {
+          "message": {
+            ".validate": "newData.isString() && newData.val().length <= 200"
+          },
+          "playerName": {
+            ".validate": "newData.isString() && newData.val().length <= 20"
+          },
+          "playerNumber": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 6"
+          },
+          "timestamp": {
+            ".validate": "newData.isNumber()"
+          },
+          "$other": {
+            ".validate": false
+          }
+        }
       }
     }
   }

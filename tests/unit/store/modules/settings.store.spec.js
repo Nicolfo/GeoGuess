@@ -4,9 +4,51 @@ jest.mock('@/lang', ()=>{
     };
 });
 
+jest.mock('firebase/database', () => ({}));
+jest.mock('firebase/app', () => {
+    const database = jest.fn();
+    database.ServerValue = { TIMESTAMP: 1000 };
+    return { __esModule: true, default: { database } };
+});
+
+import firebase from 'firebase/app';
 import { GAME_MODE } from '@/constants';
 import * as MutationTypes from '@/store/mutation-types';
 import { default as settingsStore, GameSettings } from '@/store/modules/settings.store';
+
+// Build a room reference whose transaction runs the real updater against the
+// given server snapshot, so the slot-assignment / rejection logic is exercised.
+function mockRoom(serverData) {
+    const removeOnDisconnect = { remove: jest.fn() };
+    return {
+        transaction: jest.fn((updater, onComplete) => {
+            const result = updater(serverData);
+            onComplete(null, result !== undefined, { val: () => result });
+        }),
+        child: jest.fn(() => ({
+            onDisconnect: jest.fn(() => removeOnDisconnect),
+        })),
+        update: jest.fn(),
+        off: jest.fn(),
+    };
+}
+
+function setupRoom(serverData) {
+    const room = mockRoom(serverData);
+    firebase.database.mockReturnValue({ ref: jest.fn(() => room) });
+    return room;
+}
+
+function baseState() {
+    return {
+        isOpenDialogRoom: true,
+        loadRoom: false,
+        name: 'Bob',
+        currentComponent: '',
+        playerNumber: 0,
+        roomErrorMessage: null,
+    };
+}
 
 describe('settingsStore.js', () => {
     it('SETTINGS_SET_GAME_SETTINGS', ()=>{
@@ -27,6 +69,74 @@ describe('settingsStore.js', () => {
         expect(state.gameSettings.modeSelected).toEqual('country');
         expect(state.gameSettings.optimiseStreetView).toBeTruthy();
 
+    });
+
+    describe('SETTINGS_SET_ROOM (atomic join)', () => {
+        afterEach(() => jest.clearAllMocks());
+
+        it('makes the joiner of an empty room the host', () => {
+            const room = setupRoom(null);
+            const state = baseState();
+
+            settingsStore.mutations[MutationTypes.SETTINGS_SET_ROOM](
+                state,
+                'myroom'
+            );
+
+            expect(room.transaction).toHaveBeenCalled();
+            expect(state.playerNumber).toEqual(1);
+            expect(state.currentComponent).toEqual('settingsMap');
+            expect(state.roomErrorMessage).toBeNull();
+            expect(room.update).toHaveBeenCalled(); // createdAt timestamp
+        });
+
+        it('assigns the next free slot to a joining player', () => {
+            setupRoom({ playerName: { player1: 'Alice' } });
+            const state = baseState();
+
+            settingsStore.mutations[MutationTypes.SETTINGS_SET_ROOM](
+                state,
+                'myroom'
+            );
+
+            expect(state.playerNumber).toEqual(2);
+            expect(state.currentComponent).toEqual('playerName');
+        });
+
+        it('rejects a player when the room is full', () => {
+            setupRoom({
+                playerName: {
+                    player1: 'a',
+                    player2: 'b',
+                    player3: 'c',
+                    player4: 'd',
+                    player5: 'e',
+                    player6: 'f',
+                },
+            });
+            const state = baseState();
+
+            settingsStore.mutations[MutationTypes.SETTINGS_SET_ROOM](
+                state,
+                'myroom'
+            );
+
+            expect(state.playerNumber).toEqual(0);
+            expect(state.roomErrorMessage).toEqual('DialogRoom.roomIsFull');
+        });
+
+        it('rejects a player when the game already started', () => {
+            setupRoom({ started: true, playerName: { player1: 'a' } });
+            const state = baseState();
+
+            settingsStore.mutations[MutationTypes.SETTINGS_SET_ROOM](
+                state,
+                'myroom'
+            );
+
+            expect(state.playerNumber).toEqual(0);
+            expect(state.roomErrorMessage).toEqual('DialogRoom.alreadyStarted');
+        });
     });
 
     it('setPlayerName will commit playerName', ()=>{

@@ -19,6 +19,8 @@ do
   sed -i 's|VUE_APP_FIREBASE_MESSAGING_SENDER_ID_ENV|'${VUE_APP_FIREBASE_MESSAGING_SENDER_ID:-none7}'|g' $file
   sed -i 's|VUE_APP_FIREBASE_APP_ID_ENV|'${VUE_APP_FIREBASE_APP_ID:-none8}'|g' $file
   sed -i 's|VUE_APP_FIREBASE_MEASURMENT_ID_ENV|'${VUE_APP_FIREBASE_MEASURMENT_ID:-none9}'|g' $file
+  # Empty default keeps App Check inert until a reCAPTCHA v3 site key is provided
+  sed -i 's|VUE_APP_RECAPTCHA_SITE_KEY_ENV|'${VUE_APP_RECAPTCHA_SITE_KEY:-}'|g' $file
 
 done
 
