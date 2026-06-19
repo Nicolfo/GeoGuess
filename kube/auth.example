@@ -1,0 +1,6 @@
+# htpasswd file for the nginx/traefik basic-auth ingress (Secret "basic-auth").
+# Generate your own — do NOT commit the real kube/auth (it is git-ignored):
+#   htpasswd -nb <user> <password> > kube/auth
+# Then create the Kubernetes secret from it:
+#   kubectl -n geoguess create secret generic basic-auth --from-file=auth=kube/auth
+geoguess:$apr1$REPLACE$WITHYOUROWNHASH

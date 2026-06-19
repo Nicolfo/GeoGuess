@@ -30,3 +30,8 @@ yarn-error.log*
 /tests/e2e/videos
 
 stryker-tmp
+
+# Local deployment config with real secrets (keep out of git)
+docker-compose.override.yml
+kube/deploy.local.yaml
+kube/auth

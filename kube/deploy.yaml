@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: geoguess
+  namespace: geoguess
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geoguess
+  template:
+    metadata:
+      labels:
+        app: geoguess
+    spec:
+      containers:
+        - name: geoguess
+          image: registry.example.com/geoguess:1.2.2
+          # Pin to an immutable semantic version tag. IfNotPresent avoids
+          # re-pulling an already-cached layer; bump the tag for new releases.
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          env:
+            # Fill these in (the live values live in kube/deploy.local.yaml,
+            # which is git-ignored). The VUE_APP_API_KEY (Google Maps) is
+            # billable — restrict it by HTTP referrer in the Google console.
+            - name: VUE_APP_API_KEY
+              value: "your-google-maps-api-key"
+            - name: VUE_APP_FIREBASE_API_KEY
+              value: "your-firebase-api-key"
+            - name: VUE_APP_FIREBASE_PROJECT_ID
+              value: "your-project-id"
+            - name: VUE_APP_FIREBASE_MESSAGING_SENDER_ID
+              value: "your-sender-id"
+            - name: VUE_APP_FIREBASE_APP_ID
+              value: "your-app-id"
+            - name: VUE_APP_FIREBASE_MEASUREMENT_ID
+              value: "your-measurement-id"
+            - name: VUE_APP_FIREBASE_AUTH_DOMAIN
+              value: "your-project-id.firebaseapp.com"
+            - name: VUE_APP_FIREBASE_DATABASE_URL
+              value: "https://your-project-id-default-rtdb.firebasedatabase.app"
+            - name: VUE_APP_STORAGE_BUCKET
+              value: "your-project-id.firebasestorage.app"
+            # App Check (reCAPTCHA v3). Paste the public site key from the
+            # Firebase console (App Check > register web app). Empty = App Check
+            # stays inert, so the app keeps working until you set this up.
+            - name: VUE_APP_RECAPTCHA_SITE_KEY
+              value: "your-recaptcha-v3-site-key"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geoguess
+  namespace: geoguess
+spec:
+  selector:
+    app: geoguess
+  ports:
+    - port: 80
+      targetPort: 80
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: geoguess
+  namespace: geoguess
+  annotations:
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "basic-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "Authentication Required"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: geoguess.example.com  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: geoguess
+                port:
+                  number: 80
