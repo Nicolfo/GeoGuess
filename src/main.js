@@ -1,6 +1,7 @@
 import axios from '@/plugins/axios';
 import 'firebase/analytics';
 import firebase from 'firebase/app';
+import 'firebase/auth';
 import 'firebase/database';
 import * as GmapVue from 'gmap-vue';
 import Vue from 'vue';
@@ -68,6 +69,18 @@ const firebaseConfig = {
 // Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 if (firebaseConfig.measurementId) firebase.analytics();
+
+// Sign the player in anonymously so database writes can be restricted to
+// authenticated clients (see database.rules.json). This is a no-op until the
+// Anonymous sign-in provider is enabled in the Firebase console; the catch
+// keeps the app working in the meantime.
+firebase
+    .auth()
+    .signInAnonymously()
+    .catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error('Anonymous Firebase auth failed:', error);
+    });
 
 new Vue({
     vuetify: vuetify(i18n),

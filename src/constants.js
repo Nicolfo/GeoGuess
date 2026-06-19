@@ -1,3 +1,7 @@
+// Maximum number of players allowed in a multiplayer room (host + 5 friends).
+// Must stay in sync with the player slot pattern in database.rules.json.
+export const MAX_PLAYERS = 6;
+
 export const GAME_MODE = {
     CLASSIC: 'classic',
     COUNTRY: 'country',

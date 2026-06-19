@@ -1,7 +1,7 @@
 import bbox from '@turf/bbox';
 import firebase from 'firebase/app';
 import 'firebase/database';
-import { GAME_MODE, SCORE_MODE } from '../../constants';
+import { GAME_MODE, SCORE_MODE, MAX_PLAYERS } from '../../constants';
 import i18n from '../../lang';
 import router from '../../router';
 import { getMaxDistanceBbox } from '../../utils';
@@ -83,6 +83,14 @@ export default {
                 const numberOfPlayers = snapshot
                     .child('playerName')
                     .numChildren();
+
+                // Reject the player when the room is already full
+                if (numberOfPlayers >= MAX_PLAYERS) {
+                    state.roomErrorMessage = i18n.t('DialogRoom.roomIsFull');
+                    state.room.off();
+                    return;
+                }
+
                 const playerNumber = numberOfPlayers + 1;
 
                 state.playerNumber = playerNumber;
@@ -203,7 +211,7 @@ export default {
                     } else {
                         // Remove only the player's name node if the player isn't the first player
                         state.room
-                            .child('playerName/player' + this.playerNumber)
+                            .child('playerName/player' + state.playerNumber)
                             .remove();
                     }
                 }

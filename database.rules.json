@@ -1,0 +1,19 @@
+{
+  "rules": {
+    "$room": {
+      ".read": true,
+      ".write": "auth != null",
+      "playerName": {
+        "$player": {
+          ".validate": "$player.matches(/^player[1-6]$/) && newData.isString() && newData.val().length <= 20"
+        }
+      },
+      "started": {
+        ".validate": "newData.isBoolean()"
+      },
+      "size": {
+        ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 6"
+      }
+    }
+  }
+}
