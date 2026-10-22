@@ -21,7 +21,7 @@ ENV VUE_APP_RECAPTCHA_SITE_KEY=VUE_APP_RECAPTCHA_SITE_KEY_ENV
 
 RUN npm run build
 
-FROM nginx:stable-alpine as production
+FROM nginx:1.30-alpine as production
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY ./nginx.conf /etc/nginx/conf.d/default.conf
 
