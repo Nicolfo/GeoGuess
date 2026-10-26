@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: geoguess
-          image: registry.example.com/geoguess:1.2.2
+          image: registry.example.com/geoguess:1.2.6
           # Pin to an immutable semantic version tag. IfNotPresent avoids
           # re-pulling an already-cached layer; bump the tag for new releases.
           imagePullPolicy: IfNotPresent
